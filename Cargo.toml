@@ -1,0 +1,15 @@
+[package]
+name = "fast-green-kernel"
+version = "0.1.0"
+authors = ["Timo Betcke <timo.betcke@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+ndarray = { version = "0.15", features = ["rayon", "blas"] }
+blas-src = { version = "0.8", features = ["openblas"] }
+openblas-src = { version = "0.10", features = ["cblas", "system"] }
+num-traits = "0.2"
+approx = "0.4"
