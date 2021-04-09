@@ -18,7 +18,7 @@ use num_traits;
 
 /// The basic data structure of this library for sources and targets
 /// that are owned by the structure.
-pub struct ParticleSpace<T: SupportedType> {
+pub struct ParticleSpaceContainer<T: SupportedType> {
     sources: Array2<T>,
     targets: Array2<T>,
 }
@@ -26,7 +26,7 @@ pub struct ParticleSpace<T: SupportedType> {
 
 // The basic data structure of this library for sources and targets
 // that are not owned by the structure.
-pub struct ParticleSpaceView<'a, T: SupportedType> {
+pub struct ParticleSpaceContainerView<'a, T: SupportedType> {
     sources: ArrayView2<'a, T>,
     targets: ArrayView2<'a, T>,
 }
