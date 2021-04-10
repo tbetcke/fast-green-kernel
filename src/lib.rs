@@ -13,53 +13,29 @@
 //! together with corresponding Python interfaces.
 //!
 
-use ndarray::{Array2, ArrayView2};
-use num_traits;
-
-/// The basic data structure of this library for sources and targets
-/// that are owned by the structure.
-pub struct ParticleSpaceContainer<T: SupportedType> {
-    sources: Array2<T>,
-    targets: Array2<T>,
-}
-
-
-// The basic data structure of this library for sources and targets
-// that are not owned by the structure.
-pub struct ParticleSpaceContainerView<'a, T: SupportedType> {
-    sources: ArrayView2<'a, T>,
-    targets: ArrayView2<'a, T>,
-}
-
-/// This trait specifies the required floating point properties.
-/// Currently, we support f32 and f64. The actual type is contained
-/// in the trait `BasePrecision`.
-pub trait SupportedType:
-    num_traits::Float
-    + num_traits::FloatConst
-    + num_traits::NumAssignOps
-    + std::marker::Send
-    + std::marker::Sync
-    + BasePrecision // This trait specifies the bound f32 or f64
-{
-    type FloatingType;
-}
-
-impl<T> SupportedType for T
-where
-    T: num_traits::Float,
-    T: num_traits::FloatConst,
-    T: num_traits::NumAssignOps,
-    T: std::marker::Send,
-    T: std::marker::Sync,
-    T: BasePrecision,
-{
-    type FloatingType = <T as BasePrecision>::FloatingType;
-}
-
+/// This trait determines the supported precision. It is implemented
+/// for f32 and f64.
 pub trait BasePrecision {
     type FloatingType;
 }
+
+/// This trait specifies the required floating point properties for real types.
+/// Currently, we support f32 and f64.
+pub trait RealType:
+    num::traits::Float
+    + num::traits::FloatConst
+    + num::traits::NumAssignOps
+    + std::marker::Send
+    + std::marker::Sync
+{
+}
+
+pub trait ResultType:
+    num::traits::Num + num::traits::NumAssignOps + std::marker::Send + std::marker::Sync
+{
+}
+
+use num::complex::Complex;
 
 impl BasePrecision for f32 {
     type FloatingType = f32;
@@ -69,4 +45,15 @@ impl BasePrecision for f64 {
     type FloatingType = f64;
 }
 
-pub mod base;
+impl RealType for f32 {}
+impl RealType for f64 {}
+
+impl ResultType for Complex<f32> {}
+impl ResultType for Complex<f64> {}
+impl ResultType for f32 {}
+impl ResultType for f64 {}
+
+pub mod evaluator;
+pub mod particle_container;
+pub mod utilities;
+pub mod kernels;
