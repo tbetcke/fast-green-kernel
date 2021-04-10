@@ -53,7 +53,7 @@ impl ResultType for Complex<f64> {}
 impl ResultType for f32 {}
 impl ResultType for f64 {}
 
-pub mod evaluator;
+pub mod direct_evaluator;
 pub mod particle_container;
 pub mod utilities;
 pub mod kernels;

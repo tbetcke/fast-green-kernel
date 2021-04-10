@@ -2,8 +2,8 @@
 //! underlying Greens function.
 
 use super::particle_container::ParticleContainerAccessor;
-use super::{RealType, ResultType};
-use ndarray::ArrayView2;
+use super::RealType;
+use ndarray::{Array2, ArrayView2, ArrayViewMut2};
 use num::complex::Complex;
 
 /// Definition of allowed Kernel types.
@@ -13,17 +13,20 @@ pub enum KernelType<T: RealType> {
     ModifiedHelmholtz(T),
 }
 
+pub enum ThreadingType {
+    Parallel,
+    Serial,
+}
+
 /// This type defines an Evaluator consisting of a
 /// `ParticleSpace` and a `KernelType`.
-pub struct EvaluatorBase<P: ParticleContainerAccessor, R: ResultType> {
-    phantom: std::marker::PhantomData<R>,
+pub struct RealDirectEvaluator<P: ParticleContainerAccessor> {
     kernel_type: KernelType<P::FloatingPointType>,
     particle_container: P,
 }
 
-pub trait Evaluator {
+pub trait RealDirectEvaluatorAccessor {
     type FloatingPointType: RealType;
-    type ResultType: ResultType;
 
     /// Get the kernel definition.
     fn kernel_type(&self) -> &KernelType<Self::FloatingPointType>;
@@ -32,11 +35,20 @@ pub trait Evaluator {
     fn sources(&self) -> ArrayView2<Self::FloatingPointType>;
     /// Return a non-owning representation of the targets.
     fn targets(&self) -> ArrayView2<Self::FloatingPointType>;
+
+    /// Assemble the kernel matrix in place
+    fn assemble_in_place(
+        &self,
+        result: ArrayViewMut2<Self::FloatingPointType>,
+        threading_type: ThreadingType,
+    );
+
+    /// Assemble the kernel matrix and return it
+    fn assemble(&self, threading_type: ThreadingType) -> Array2<Self::FloatingPointType>;
 }
 
-impl<P: ParticleContainerAccessor, R: ResultType> Evaluator for EvaluatorBase<P, R> {
+impl<P: ParticleContainerAccessor> RealDirectEvaluatorAccessor for RealDirectEvaluator<P> {
     type FloatingPointType = P::FloatingPointType;
-    type ResultType = R;
 
     /// Get the kernel definition.
     fn kernel_type(&self) -> &KernelType<Self::FloatingPointType> {
@@ -51,6 +63,27 @@ impl<P: ParticleContainerAccessor, R: ResultType> Evaluator for EvaluatorBase<P,
     fn targets(&self) -> ArrayView2<Self::FloatingPointType> {
         self.particle_container.targets()
     }
-}
 
-pub mod direct;
+    fn assemble_in_place(
+        &self,
+        result: ArrayViewMut2<Self::FloatingPointType>,
+        threading_type: ThreadingType,
+    ) {
+        use crate::kernels::laplace_kernel;
+        use ndarray::Zip;
+
+        match threading_type {
+            parallel => Zip::from(self.targets().columns())
+                .and(result.rows_mut())
+                .par_for_each(|target, mut result_row| {
+                    laplace_kernel(&target, &self.sources(), &mut result_row)
+                }),
+
+            serial => Zip::from(targets.columns())
+                .and(result.rows_mut())
+                .for_each(|target, mut result_row| {
+                    laplace_kernel(&target, &sources, &mut result_row)
+                }),
+        }
+    }
+}
