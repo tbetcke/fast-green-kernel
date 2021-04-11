@@ -3,7 +3,7 @@
 
 use super::particle_container::ParticleContainerAccessor;
 use super::RealType;
-use ndarray::{Array2, ArrayView2, ArrayViewMut2};
+use ndarray::{Array2, ArrayView2, ArrayViewMut2, Axis};
 use num::complex::Complex;
 
 /// Definition of allowed Kernel types.
@@ -36,10 +36,16 @@ pub trait RealDirectEvaluatorAccessor {
     /// Return a non-owning representation of the targets.
     fn targets(&self) -> ArrayView2<Self::FloatingPointType>;
 
-    /// Assemble the kernel matrix in place
+    // Return number of sources
+    fn nsources(&self) -> usize;
+
+    // Return number of targets;
+    fn ntargets(&self) -> usize;
+
+    /// Assemble the kernel matrix in-place
     fn assemble_in_place(
         &self,
-        result: ArrayViewMut2<Self::FloatingPointType>,
+        result: &mut ArrayViewMut2<Self::FloatingPointType>,
         threading_type: ThreadingType,
     );
 
@@ -64,26 +70,56 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluatorAccessor for RealDirectEva
         self.particle_container.targets()
     }
 
+    // Return number of sources.
+    fn nsources(&self) -> usize {
+        self.sources().len_of(Axis(1))
+    }
+
+    fn ntargets(&self) -> usize {
+        self.targets().len_of(Axis(1))
+    }
+
+    /// Assemble the kernel matrix in-place
     fn assemble_in_place(
         &self,
-        result: ArrayViewMut2<Self::FloatingPointType>,
+        result: &mut ArrayViewMut2<Self::FloatingPointType>,
         threading_type: ThreadingType,
     ) {
-        use crate::kernels::laplace_kernel;
-        use ndarray::Zip;
+        assemble_in_place_impl::<Self::FloatingPointType>(
+            self.sources(),
+            self.targets(),
+            result,
+            threading_type,
+        );
+    }
 
-        match threading_type {
-            parallel => Zip::from(self.targets().columns())
-                .and(result.rows_mut())
-                .par_for_each(|target, mut result_row| {
-                    laplace_kernel(&target, &self.sources(), &mut result_row)
-                }),
+    /// Assemble the kernel matrix and return it
+    fn assemble(&self, threading_type: ThreadingType) -> Array2<Self::FloatingPointType> {
+        let mut result =
+            Array2::<Self::FloatingPointType>::zeros((self.nsources(), self.ntargets()));
 
-            serial => Zip::from(targets.columns())
-                .and(result.rows_mut())
-                .for_each(|target, mut result_row| {
-                    laplace_kernel(&target, &sources, &mut result_row)
-                }),
-        }
+        self.assemble_in_place(&mut result.view_mut(), threading_type);
+        result
+    }
+}
+
+/// Implementation of assembler function.
+fn assemble_in_place_impl<T: RealType>(
+    sources: ArrayView2<T>,
+    targets: ArrayView2<T>,
+    result: &mut ArrayViewMut2<T>,
+    threading_type: ThreadingType,
+) {
+    use crate::kernels::laplace_kernel;
+    use ndarray::Zip;
+
+    match threading_type {
+        ThreadingType::Parallel => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .par_for_each(|target, mut result_row| laplace_kernel(target, sources, &mut result_row)),
+
+        ThreadingType::Serial => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .for_each(|target, mut result_row| laplace_kernel(target, sources, &mut result_row)),
     }
 }

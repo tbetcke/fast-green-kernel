@@ -11,7 +11,7 @@ struct ParticleContainer<T: RealType> {
 // The basic data structure of this library for sources and targets
 // that are not owned by the structure.
 struct ParticleContainerView<'a, T: RealType> {
-    sources: ArrayView2<'a, T>,
+    sources: ArrayView2<'a,  T>,
     targets: ArrayView2<'a, T>,
 }
 

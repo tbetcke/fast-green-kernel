@@ -7,7 +7,7 @@ use num;
 pub fn laplace_kernel<T: RealType>(
     target: ArrayView1<T>,
     sources: ArrayView2<T>,
-    result: ArrayViewMut1<T>,
+    result: &mut ArrayViewMut1<T>,
 ) {
     use ndarray::Zip;
 
@@ -22,7 +22,7 @@ pub fn laplace_kernel<T: RealType>(
         .and(sources.rows())
         .for_each(|&target_value, source_row| {
             Zip::from(source_row)
-                .and(&mut result)
+                .and(result.view_mut())
                 .for_each(|&source_value, result_ref| {
                     *result_ref += (target_value - source_value) * (target_value - source_value)
                 })
@@ -39,7 +39,7 @@ pub fn laplace_kernel<T: RealType>(
 pub fn helmholtz_kernel<T: RealType>(
     target: ArrayView1<T>,
     sources: ArrayView2<T>,
-    result: ArrayViewMut1<num::complex::Complex<T>>,
+    result: &mut ArrayViewMut1<num::complex::Complex<T>>,
     wavenumber: num::complex::Complex<T>,
 ) {
     use ndarray::Zip;
