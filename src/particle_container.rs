@@ -3,16 +3,33 @@ use ndarray::{Array2, ArrayView2};
 
 /// The basic data structure of this library for sources and targets
 /// that are owned by the structure.
-struct ParticleContainer<T: RealType> {
+pub struct ParticleContainer<T: RealType> {
     sources: Array2<T>,
     targets: Array2<T>,
 }
 
+impl<T: RealType> ParticleContainer<T> {
+    // Create a new ParticleContainerView
+    pub(crate) fn new(sources: Array2<T>, targets: Array2<T>) -> ParticleContainer<T> {
+        ParticleContainer { sources, targets }
+    }
+}
+
 // The basic data structure of this library for sources and targets
 // that are not owned by the structure.
-struct ParticleContainerView<'a, T: RealType> {
-    sources: ArrayView2<'a,  T>,
+pub struct ParticleContainerView<'a, T: RealType> {
+    sources: ArrayView2<'a, T>,
     targets: ArrayView2<'a, T>,
+}
+
+impl<'a, T: RealType> ParticleContainerView<'a, T> {
+    // Create a new ParticleContainerView
+    pub(crate) fn new(
+        sources: ArrayView2<'a, T>,
+        targets: ArrayView2<'a, T>,
+    ) -> ParticleContainerView<'a, T> {
+        ParticleContainerView { sources, targets }
+    }
 }
 
 // This traits describes any type that provides an array of sources and

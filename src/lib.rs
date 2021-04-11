@@ -22,20 +22,20 @@ pub trait BasePrecision {
 /// This trait specifies the required floating point properties for real types.
 /// Currently, we support f32 and f64.
 pub trait RealType:
-    num::traits::Float
-    + num::traits::FloatConst
-    + num::traits::NumAssignOps
+    num::traits::NumAssignOps
     + std::marker::Send
     + std::marker::Sync
+    + num::traits::Float
+    + num::traits::FloatConst
 {
 }
 
-pub trait ResultType:
-    num::traits::Num + num::traits::NumAssignOps + std::marker::Send + std::marker::Sync
-{
-}
+// pub trait ResultType:
+//     num::traits::Num + num::traits::NumAssignOps + std::marker::Send + std::marker::Sync
+// {
+// }
 
-use num::complex::Complex;
+// use num::complex::Complex;
 
 impl BasePrecision for f32 {
     type FloatingType = f32;
@@ -48,12 +48,12 @@ impl BasePrecision for f64 {
 impl RealType for f32 {}
 impl RealType for f64 {}
 
-impl ResultType for Complex<f32> {}
-impl ResultType for Complex<f64> {}
-impl ResultType for f32 {}
-impl ResultType for f64 {}
+// impl ResultType for Complex<f32> {}
+// impl ResultType for Complex<f64> {}
+// impl ResultType for f32 {}
+// impl ResultType for f64 {}
 
+pub mod kernels;
 pub mod direct_evaluator;
 pub mod particle_container;
 pub mod utilities;
-pub mod kernels;
