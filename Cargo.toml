@@ -5,6 +5,7 @@ authors = ["Timo Betcke <timo.betcke@gmail.com>"]
 edition = "2018"
 
 [lib]
+name = "fast_green_kernel"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]

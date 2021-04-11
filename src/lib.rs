@@ -57,3 +57,4 @@ pub mod kernels;
 pub mod direct_evaluator;
 pub mod particle_container;
 pub mod utilities;
+pub mod c_api;

@@ -28,7 +28,7 @@ pub fn make_laplace_evaluator<'a, T: RealType>(
     DirectEvaluator::<ParticleContainerView<'a, T>, T> {
         kernel_type: KernelType::Laplace,
         particle_container: ParticleContainerView::new(sources, targets),
-        phantom: std::marker::PhantomData::<T>,
+        _marker: std::marker::PhantomData::<T>,
     }
 }
 
@@ -40,7 +40,7 @@ pub fn make_laplace_evaluator_owned<T: RealType>(
     DirectEvaluator::<ParticleContainer<T>, T> {
         kernel_type: KernelType::Laplace,
         particle_container: ParticleContainer::new(sources, targets),
-        phantom: std::marker::PhantomData::<T>,
+        _marker: std::marker::PhantomData::<T>,
     }
 }
 
@@ -53,7 +53,7 @@ pub fn make_helmholtz_evaluator<'a, T: RealType>(
     DirectEvaluator::<ParticleContainerView<'a, T>, num::complex::Complex<T>> {
         kernel_type: KernelType::Helmholtz(wavenumber),
         particle_container: ParticleContainerView::new(sources, targets),
-        phantom: std::marker::PhantomData::<num::complex::Complex<T>>,
+        _marker: std::marker::PhantomData::<num::complex::Complex<T>>,
     }
 }
 
@@ -66,7 +66,7 @@ pub fn make_helmholtz_evaluator_owned<T: RealType>(
     DirectEvaluator::<ParticleContainer<T>, Complex<T>> {
         kernel_type: KernelType::Helmholtz(wavenumber),
         particle_container: ParticleContainer::new(sources, targets),
-        phantom: std::marker::PhantomData::<Complex<T>>,
+        _marker: std::marker::PhantomData::<Complex<T>>,
     }
 }
 
@@ -75,7 +75,7 @@ pub fn make_helmholtz_evaluator_owned<T: RealType>(
 pub struct DirectEvaluator<P: ParticleContainerAccessor, R> {
     kernel_type: KernelType,
     particle_container: P,
-    phantom: std::marker::PhantomData<R>,
+    _marker: std::marker::PhantomData<R>,
 }
 
 pub trait DirectEvaluatorAccessor {
