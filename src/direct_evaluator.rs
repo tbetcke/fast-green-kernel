@@ -1,11 +1,12 @@
 //! Defines the basic `Evaluator` type. This is a struct that contains the particle Space and define the
 //! underlying Greens function.
 
+use super::kernels::EvalMode;
 use super::particle_container::{
     ParticleContainer, ParticleContainerAccessor, ParticleContainerView,
 };
 use super::RealType;
-use ndarray::{Array2, ArrayView2, ArrayViewMut2, Axis};
+use ndarray::{Array2, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis};
 use num::complex::Complex;
 
 /// Definition of allowed Kernel types.
@@ -97,15 +98,32 @@ pub trait DirectEvaluatorAccessor {
 }
 
 pub trait RealDirectEvaluator: DirectEvaluatorAccessor {
-    /// Assemble the kernel matrix in-place
+    /// Assemble the kernel matrix in-place.
     fn assemble_in_place(
         &self,
         result: &mut ArrayViewMut2<Self::FloatingPointType>,
         threading_type: ThreadingType,
     );
 
-    /// Assemble the kernel matrix and return it
+    /// Evaluate for a set of charges in-pace.
+    fn evaluate_in_place(
+        &self,
+        charges: &mut ArrayViewMut1<Self::FloatingPointType>,
+        result: &mut ArrayViewMut2<Self::FloatingPointType>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    );
+
+    /// Assemble the kernel matrix and return it.
     fn assemble(&self, threading_type: ThreadingType) -> Array2<Self::FloatingPointType>;
+
+    /// Evaluate the kernel for a set of charges.
+    fn evaluate(
+        &self,
+        charges: &mut ArrayViewMut1<Self::FloatingPointType>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) -> Array2<Self::FloatingPointType>;
 }
 
 pub trait ComplexDirectEvaluator: DirectEvaluatorAccessor {
@@ -173,10 +191,38 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
     /// Assemble the kernel matrix and return it
     fn assemble(&self, threading_type: ThreadingType) -> Array2<Self::FloatingPointType> {
         let mut result =
-            Array2::<Self::FloatingPointType>::zeros((self.nsources(), self.ntargets()));
+            Array2::<Self::FloatingPointType>::zeros((self.ntargets(), self.nsources()));
 
         self.assemble_in_place(&mut result.view_mut(), threading_type);
         result
+    }
+
+    /// Evaluate for a set of charges in-pace.
+    fn evaluate_in_place(
+        &self,
+        charges: &mut ArrayViewMut1<Self::FloatingPointType>,
+        result: &mut ArrayViewMut2<Self::FloatingPointType>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) {
+
+    }
+    /// Evaluate the kernel for a set of charges.
+    fn evaluate(
+        &self,
+        charges: &mut ArrayViewMut1<Self::FloatingPointType>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) -> Array2<Self::FloatingPointType> {
+
+        let ncols = match eval_mode {
+            EvalMode::Value => 1,
+            EvalMode::ValueGrad => 4,
+        };
+
+        let result = Array2::<Self::FloatingPointType>::zeros((ncols, self.ntargets()));
+        result
+
     }
 }
 
@@ -226,7 +272,6 @@ fn assemble_in_place_impl_laplace<T: RealType>(
     threading_type: ThreadingType,
 ) {
     use crate::kernels::laplace_kernel;
-    use crate::kernels::EvalMode;
     use ndarray::Zip;
 
     let nsources = sources.len_of(Axis(1));
@@ -281,6 +326,47 @@ fn assemble_in_place_impl_helmholtz<T: RealType>(
                     .into_shape((1, nsources))
                     .expect("Cannot conver to 2-dimensional array.");
                 helmholtz_kernel(target, sources, &mut tmp, wavenumber, &EvalMode::Value);
+            }),
+    }
+}
+
+/// Implementation of assembler function for Laplace kernels.
+fn evaluate_in_place_impl_laplace<T: RealType>(
+    sources: ArrayView2<T>,
+    targets: ArrayView2<T>,
+    charges: ArrayView2<T>,
+    result: &mut ArrayViewMut2<T>,
+    eval_mode: &EvalMode,
+    threading_type: ThreadingType,
+) {
+    use crate::kernels::laplace_kernel;
+    use ndarray::Zip;
+
+    let nsources = sources.len_of(Axis(1));
+    let ntargets = targets.len_of(Axis(0));
+
+    let ncols = match eval_mode {
+        EvalMode::Value => 1,
+        EvalMode::ValueGrad => 4,
+    };
+
+
+    match threading_type {
+        ThreadingType::Parallel => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .par_for_each(|target, result_row| {
+                let mut tmp = result_row
+                    .into_shape((1, nsources))
+                    .expect("Cannot convert to 2-dimensional array.");
+                laplace_kernel(target, sources, &mut tmp, &EvalMode::Value);
+            }),
+        ThreadingType::Serial => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .for_each(|target, result_row| {
+                let mut tmp = result_row
+                    .into_shape((1, nsources))
+                    .expect("Cannot conver to 2-dimensional array.");
+                laplace_kernel(target, sources, &mut tmp, &EvalMode::Value);
             }),
     }
 }
