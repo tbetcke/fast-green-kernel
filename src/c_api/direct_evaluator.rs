@@ -13,7 +13,7 @@ pub extern "C" fn assemble_laplace_kernel_f64(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let mut result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr) };
+    let result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr) };
 
     let threading_type = match parallel {
         true => ThreadingType::Parallel,
@@ -22,7 +22,7 @@ pub extern "C" fn assemble_laplace_kernel_f64(
 
     println!("I am here.");
 
-    make_laplace_evaluator(sources, targets).assemble_in_place(&mut result, threading_type);
+    make_laplace_evaluator(sources, targets).assemble_in_place(result, threading_type);
 }
 
 #[no_mangle]
@@ -38,7 +38,7 @@ pub extern "C" fn assemble_laplace_kernel_f32(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let mut result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr) };
+    let result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr) };
 
     let threading_type = match parallel {
         true => ThreadingType::Parallel,
@@ -48,5 +48,5 @@ pub extern "C" fn assemble_laplace_kernel_f32(
     println!("I am here.");
 
 
-    make_laplace_evaluator(sources, targets).assemble_in_place(&mut result, threading_type);
+    make_laplace_evaluator(sources, targets).assemble_in_place(result, threading_type);
 }
