@@ -12,7 +12,7 @@ pub enum EvalMode {
 pub fn laplace_kernel<T: RealType>(
     target: ArrayView1<T>,
     sources: ArrayView2<T>,
-    result: &mut ArrayViewMut2<T>,
+    mut result: ArrayViewMut2<T>,
     eval_mode: &EvalMode,
 ) {
     use ndarray::Zip;
@@ -72,7 +72,7 @@ pub fn laplace_kernel<T: RealType>(
 pub fn helmholtz_kernel<T: RealType>(
     target: ArrayView1<T>,
     sources: ArrayView2<T>,
-    result: &mut ArrayViewMut2<num::complex::Complex<T>>,
+    mut result: ArrayViewMut2<num::complex::Complex<T>>,
     wavenumber: num::complex::Complex<f64>,
     _eval_mode: &EvalMode,
 ) {
@@ -96,7 +96,7 @@ pub fn helmholtz_kernel<T: RealType>(
         .and(sources.rows())
         .for_each(|&target_value, source_row| {
             Zip::from(source_row)
-                .and(&mut diff)
+                .and(diff.view_mut())
                 .for_each(|&source_value, diff_value| {
                     *diff_value += (target_value - source_value) * (target_value - source_value)
                 })

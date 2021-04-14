@@ -109,7 +109,7 @@ pub trait RealDirectEvaluator: DirectEvaluatorAccessor {
     fn evaluate_in_place(
         &self,
         charges: ArrayView1<Self::FloatingPointType>,
-        result: &mut ArrayViewMut2<Self::FloatingPointType>,
+        result: ArrayViewMut2<Self::FloatingPointType>,
         eval_mode: &EvalMode,
         threading_type: ThreadingType,
     );
@@ -130,7 +130,7 @@ pub trait ComplexDirectEvaluator: DirectEvaluatorAccessor {
     /// Assemble the kernel matrix in-place
     fn assemble_in_place(
         &self,
-        result: &mut ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
+        result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
         threading_type: ThreadingType,
     );
 
@@ -201,7 +201,7 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
     fn evaluate_in_place(
         &self,
         charges: ArrayView1<Self::FloatingPointType>,
-        result: &mut ArrayViewMut2<Self::FloatingPointType>,
+        result: ArrayViewMut2<Self::FloatingPointType>,
         eval_mode: &EvalMode,
         threading_type: ThreadingType,
     ) {
@@ -231,7 +231,7 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
             self.sources(),
             self.targets(),
             charges,
-            &mut result.view_mut(),
+            result.view_mut(),
             eval_mode,
             threading_type,
         );
@@ -245,7 +245,7 @@ impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
     /// Assemble the kernel matrix in-place
     fn assemble_in_place(
         &self,
-        result: &mut ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
+        result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
         threading_type: ThreadingType,
     ) {
         match self.kernel_type {
@@ -272,7 +272,7 @@ impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
             self.ntargets(),
         ));
 
-        self.assemble_in_place(&mut result.view_mut(), threading_type);
+        self.assemble_in_place(result.view_mut(), threading_type);
         result
     }
 }
@@ -293,18 +293,18 @@ fn assemble_in_place_impl_laplace<T: RealType>(
         ThreadingType::Parallel => Zip::from(targets.columns())
             .and(result.rows_mut())
             .par_for_each(|target, result_row| {
-                let mut tmp = result_row
+                let tmp = result_row
                     .into_shape((1, nsources))
                     .expect("Cannot convert to 2-dimensional array.");
-                laplace_kernel(target, sources, &mut tmp, &EvalMode::Value);
+                laplace_kernel(target, sources, tmp, &EvalMode::Value);
             }),
         ThreadingType::Serial => Zip::from(targets.columns())
             .and(result.rows_mut())
             .for_each(|target, result_row| {
-                let mut tmp = result_row
+                let tmp = result_row
                     .into_shape((1, nsources))
                     .expect("Cannot conver to 2-dimensional array.");
-                laplace_kernel(target, sources, &mut tmp, &EvalMode::Value);
+                laplace_kernel(target, sources, tmp, &EvalMode::Value);
             }),
     }
 }
@@ -313,7 +313,7 @@ fn assemble_in_place_impl_laplace<T: RealType>(
 fn assemble_in_place_impl_helmholtz<T: RealType>(
     sources: ArrayView2<T>,
     targets: ArrayView2<T>,
-    result: &mut ArrayViewMut2<num::complex::Complex<T>>,
+    mut result: ArrayViewMut2<num::complex::Complex<T>>,
     wavenumber: num::complex::Complex<f64>,
     threading_type: ThreadingType,
 ) {
@@ -326,18 +326,18 @@ fn assemble_in_place_impl_helmholtz<T: RealType>(
         ThreadingType::Parallel => Zip::from(targets.columns())
             .and(result.rows_mut())
             .par_for_each(|target, result_row| {
-                let mut tmp = result_row
+                let tmp = result_row
                     .into_shape((1, nsources))
                     .expect("Cannot convert to 2-dimensional array.");
-                helmholtz_kernel(target, sources, &mut tmp, wavenumber, &EvalMode::Value);
+                helmholtz_kernel(target, sources, tmp, wavenumber, &EvalMode::Value);
             }),
         ThreadingType::Serial => Zip::from(targets.columns())
             .and(result.rows_mut())
             .for_each(|target, result_row| {
-                let mut tmp = result_row
+                let tmp = result_row
                     .into_shape((1, nsources))
                     .expect("Cannot conver to 2-dimensional array.");
-                helmholtz_kernel(target, sources, &mut tmp, wavenumber, &EvalMode::Value);
+                helmholtz_kernel(target, sources, tmp, wavenumber, &EvalMode::Value);
             }),
     }
 }
@@ -347,7 +347,7 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
     sources: ArrayView2<T>,
     targets: ArrayView2<T>,
     charges: ArrayView1<T>,
-    result: &mut ArrayViewMut2<T>,
+    mut result: ArrayViewMut2<T>,
     eval_mode: &EvalMode,
     threading_type: ThreadingType,
 ) {
@@ -366,7 +366,7 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
             .and(result.rows_mut())
             .par_for_each(|target, mut result_row| {
                 let mut tmp = Array2::<T>::zeros((chunks, nsources));
-                laplace_kernel(target, sources, &mut tmp.view_mut(), eval_mode);
+                laplace_kernel(target, sources, tmp.view_mut(), eval_mode);
                 Zip::from(tmp.rows())
                     .and(result_row.view_mut())
                     .for_each(|tmp_row, result_elem| {
@@ -379,7 +379,7 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
             .and(result.rows_mut())
             .for_each(|target, mut result_row| {
                 let mut tmp = Array2::<T>::zeros((chunks, nsources));
-                laplace_kernel(target, sources, &mut tmp.view_mut(), eval_mode);
+                laplace_kernel(target, sources, tmp.view_mut(), eval_mode);
                 Zip::from(tmp.rows())
                     .and(result_row.view_mut())
                     .for_each(|tmp_row, result_elem| {
