@@ -16,3 +16,5 @@ Cargo.lock
 # Lib
 *.so
 
+build_and_test.sh
+fast_green_kernel/fast_green_kernel/*

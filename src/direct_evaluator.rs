@@ -361,6 +361,8 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
         EvalMode::ValueGrad => 4,
     };
 
+    result.fill(num::traits::zero());
+
     match threading_type {
         ThreadingType::Parallel => Zip::from(targets.columns())
             .and(result.rows_mut())
