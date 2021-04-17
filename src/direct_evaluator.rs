@@ -386,7 +386,7 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
             }),
         ThreadingType::Serial => Zip::from(targets.columns())
             .and(result.axis_iter_mut(Axis(1)))
-            .par_for_each(|target, mut result_block| {
+            .for_each(|target, mut result_block| {
                 let mut tmp = Array2::<T>::zeros((chunks, nsources));
                 laplace_kernel(target, sources, tmp.view_mut(), eval_mode);
                 Zip::from(charges.rows())

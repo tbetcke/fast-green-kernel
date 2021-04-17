@@ -80,7 +80,7 @@ pub extern "C" fn evaluate_laplace_kernel_f64(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((nsources, ncharge_vecs), charge_ptr) };
+    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((ncharge_vecs, nsources), charge_ptr) };
     let result = unsafe { ndarray::ArrayViewMut3::from_shape_ptr((ncharge_vecs, ntargets, ncols), result_ptr) };
 
     make_laplace_evaluator(sources, targets).evaluate_in_place(
@@ -123,7 +123,7 @@ pub extern "C" fn evaluate_laplace_kernel_f32(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((nsources, ncharge_vecs), charge_ptr) };
+    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((ncharge_vecs, nsources), charge_ptr) };
     let result = unsafe { ndarray::ArrayViewMut3::from_shape_ptr((ncharge_vecs, ntargets, ncols), result_ptr) };
 
 

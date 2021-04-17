@@ -58,9 +58,9 @@ def test_laplace_evaluate_only_values(dtype, rtol):
     targets = 1.5 + rng.random((3, ntargets), dtype=dtype)
     sources = rng.random((3, nsources), dtype=dtype)
     sources[:, 0] = targets[:, 0]  # Test what happens if source = target
-    charges = rng.random((nsources, ncharge_vecs), dtype=dtype)
+    charges = rng.random((ncharge_vecs, nsources), dtype=dtype)
 
-    actual = evaluate_laplace_kernel(targets, sources, charges, dtype=dtype)
+    actual = evaluate_laplace_kernel(targets, sources, charges, dtype=dtype, parallel=False)
 
     # Calculate expected result
 
@@ -69,10 +69,10 @@ def test_laplace_evaluate_only_values(dtype, rtol):
     old_param = np.geterr()["divide"]
     np.seterr(divide="ignore")
 
-    expected = np.empty((ntargets, nsources), dtype=dtype)
+    expected = np.empty((nsources, ntargets), dtype=dtype)
 
     for index, target in enumerate(targets.T):
-        expected[index, :] = 1.0 / (
+        expected[:, index] = 1.0 / (
             4 * np.pi * np.linalg.norm(sources - target.reshape(3, 1), axis=0)
         )
 
@@ -81,7 +81,7 @@ def test_laplace_evaluate_only_values(dtype, rtol):
 
     expected[0, 0] = 0  # First source and target are identical.
 
-    expected = (expected @ charges).reshape(ntargets, 1, ncharge_vecs)
+    expected = np.expand_dims(charges @ expected, -1)
 
     np.testing.assert_allclose(actual, expected, rtol=rtol)
 
@@ -101,7 +101,7 @@ def test_laplace_evaluate_values_and_deriv(dtype, rtol):
     targets = 1.5 + rng.random((3, ntargets), dtype=dtype)
     sources = rng.random((3, nsources), dtype=dtype)
     sources[:, 0] = targets[:, 0]  # Test what happens if source = target
-    charges = rng.random((nsources, ncharge_vecs), dtype=dtype)
+    charges = rng.random((ncharge_vecs, nsources), dtype=dtype)
 
     actual = evaluate_laplace_kernel(targets, sources, charges, dtype=dtype, return_gradients=True, parallel=True)
 
@@ -112,19 +112,19 @@ def test_laplace_evaluate_values_and_deriv(dtype, rtol):
     old_params = np.geterr()
     np.seterr(all="ignore")
 
-    expected = np.empty((ntargets, 4, nsources), dtype=dtype)
+    expected = np.empty((nsources, ntargets, 4), dtype=dtype)
 
     for index, target in enumerate(targets.T):
         diff = target.reshape(3, 1) - sources
         dist = np.linalg.norm(diff, axis=0)
-        expected[index, 0, :] = 1.0 / ( 4 * np.pi * dist)
-        expected[index, 1:, :] = diff / (4 * np.pi * dist**3)
-        expected[index, :, dist == 0] = 0
+        expected[:, index, 0] = 1.0 / ( 4 * np.pi * dist)
+        expected[:, index, 1:] = diff.T / (4 * np.pi * dist.reshape(nsources, 1)**3)
+        expected[dist == 0, index, :] = 0
 
 
     # Reset the warnings
     np.seterr(**old_params)
 
-    expected = (expected @ charges)
+    expected = np.tensordot(charges, expected, 1)
 
     np.testing.assert_allclose(actual, expected, rtol=rtol)

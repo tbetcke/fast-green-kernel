@@ -70,9 +70,9 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
             f"sources must be a 2-dim array of shape (3, nsources), current shape: {sources.shape}."
         )
 
-    if charges.shape[0] != sources.shape[1] or charges.ndim > 2:
+    if charges.shape[-1] != sources.shape[1] or charges.ndim > 2:
         raise ValueError(
-            f"charges must be a 1- or 2-dim array of shape (nsources,..), current shape: {charges.shape}."
+            f"charges must be a 1- or 2-dim array of shape (...,nsources), current shape: {charges.shape}."
         )
 
     nsources = sources.shape[1]
@@ -88,7 +88,7 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
         result = np.empty((ntargets, ncols), dtype=dtype)
 
     else:
-        ncharge_vecs = charges.shape[1]
+        ncharge_vecs = charges.shape[0]
         result = np.empty((ncharge_vecs, ntargets, ncols), dtype=dtype)
 
     target = align_data(targets, dtype=dtype)
