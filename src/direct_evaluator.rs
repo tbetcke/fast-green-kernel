@@ -229,7 +229,7 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
         let ncharge_vecs = charges.len_of(Axis(1));
 
         let mut result =
-            Array3::<Self::FloatingPointType>::zeros((self.ntargets(), chunks, ncharge_vecs));
+            Array3::<Self::FloatingPointType>::zeros((ncharge_vecs, chunks, self.ntargets()));
         evaluate_in_place_impl_laplace(
             self.sources(),
             self.targets(),
@@ -368,42 +368,38 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
 
     match threading_type {
         ThreadingType::Parallel => Zip::from(targets.columns())
-            .and(result.axis_iter_mut(Axis(0)))
+            .and(result.axis_iter_mut(Axis(1)))
             .par_for_each(|target, mut result_block| {
                 let mut tmp = Array2::<T>::zeros((chunks, nsources));
                 laplace_kernel(target, sources, tmp.view_mut(), eval_mode);
-                Zip::from(tmp.rows()).and(result_block.rows_mut()).for_each(
-                    |tmp_row, mut result_row| {
-                        Zip::from(charges.rows())
-                            .and(tmp_row)
-                            .for_each(|charge_row, tmp_elem| {
-                                Zip::from(charge_row).and(result_row.view_mut()).for_each(
-                                    |charge_elem, result_elem| {
-                                        *result_elem += *charge_elem * *tmp_elem
-                                    },
+                Zip::from(charges.rows())
+                    .and(result_block.rows_mut())
+                    .for_each(|charge_vec, result_row| {
+                        Zip::from(tmp.rows())
+                            .and(result_row)
+                            .for_each(|tmp_row, result_elem| {
+                                Zip::from(tmp_row).and(charge_vec).for_each(
+                                    |tmp_elem, charge_elem| *result_elem += *tmp_elem * *charge_elem,
                                 )
                             })
-                    },
-                )
+                    })
             }),
         ThreadingType::Serial => Zip::from(targets.columns())
-            .and(result.axis_iter_mut(Axis(0)))
-            .for_each(|target, mut result_block| {
+            .and(result.axis_iter_mut(Axis(1)))
+            .par_for_each(|target, mut result_block| {
                 let mut tmp = Array2::<T>::zeros((chunks, nsources));
                 laplace_kernel(target, sources, tmp.view_mut(), eval_mode);
-                Zip::from(tmp.rows()).and(result_block.rows_mut()).for_each(
-                    |tmp_row, mut result_row| {
-                        Zip::from(charges.rows())
-                            .and(tmp_row)
-                            .for_each(|charge_row, tmp_elem| {
-                                Zip::from(charge_row).and(result_row.view_mut()).for_each(
-                                    |charge_elem, result_elem| {
-                                        *result_elem += *charge_elem * *tmp_elem
-                                    },
+                Zip::from(charges.rows())
+                    .and(result_block.rows_mut())
+                    .for_each(|charge_vec, result_row| {
+                        Zip::from(tmp.rows())
+                            .and(result_row)
+                            .for_each(|tmp_row, result_elem| {
+                                Zip::from(tmp_row).and(charge_vec).for_each(
+                                    |tmp_elem, charge_elem| *result_elem += *tmp_elem * *charge_elem,
                                 )
                             })
-                    },
-                )
+                    })
             }),
     }
 }

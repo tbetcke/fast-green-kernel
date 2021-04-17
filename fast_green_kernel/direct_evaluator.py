@@ -89,13 +89,11 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
 
     else:
         ncharge_vecs = charges.shape[1]
-        result = np.empty((ntargets, ncols, ncharge_vecs), dtype=dtype)
+        result = np.empty((ncharge_vecs, ntargets, ncols), dtype=dtype)
 
     target = align_data(targets, dtype=dtype)
     sources = align_data(sources, dtype=dtype)
     charges = align_data(charges, dtype=dtype)
-
-
 
     if dtype == np.float32:
         lib.evaluate_laplace_kernel_f32(

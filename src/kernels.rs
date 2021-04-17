@@ -94,7 +94,7 @@ pub fn laplace_kernel_impl_deriv<T: RealType>(
         .filter(|item| item.is_infinite())
         .for_each(|item| *item = zero);
 
-    let (values, mut derivs) = result.split_at(Axis(0), 0);
+    let (values, mut derivs) = result.split_at(Axis(0), 1);
     let values = values.index_axis(Axis(0), 0);
 
     Zip::from(derivs.rows_mut())
