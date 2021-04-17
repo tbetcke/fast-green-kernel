@@ -56,6 +56,7 @@ pub extern "C" fn evaluate_laplace_kernel_f64(
     result_ptr: *mut f64,
     nsources: usize,
     ntargets: usize,
+    ncharge_vecs: usize,
     return_gradients: bool,
     parallel: bool,
 ) {
@@ -79,8 +80,8 @@ pub extern "C" fn evaluate_laplace_kernel_f64(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let charges = unsafe { ndarray::ArrayView1::from_shape_ptr(nsources, charge_ptr) };
-    let result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, ncols), result_ptr) };
+    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((nsources, ncharge_vecs), charge_ptr) };
+    let result = unsafe { ndarray::ArrayViewMut3::from_shape_ptr((ntargets, ncols, ncharge_vecs), result_ptr) };
 
     make_laplace_evaluator(sources, targets).evaluate_in_place(
         charges,
@@ -98,6 +99,7 @@ pub extern "C" fn evaluate_laplace_kernel_f32(
     result_ptr: *mut f32,
     nsources: usize,
     ntargets: usize,
+    ncharge_vecs: usize,
     return_gradients: bool,
     parallel: bool,
 ) {
@@ -121,13 +123,13 @@ pub extern "C" fn evaluate_laplace_kernel_f32(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let charges = unsafe { ndarray::ArrayView1::from_shape_ptr(nsources, charge_ptr) };
-    let mut result = unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, ncols), result_ptr) };
+    let charges = unsafe { ndarray::ArrayView2::from_shape_ptr((nsources, ncharge_vecs), charge_ptr) };
+    let result = unsafe { ndarray::ArrayViewMut3::from_shape_ptr((ntargets, ncols, ncharge_vecs), result_ptr) };
 
 
     make_laplace_evaluator(sources, targets).evaluate_in_place(
         charges,
-        result.view_mut(),
+        result,
         &eval_mode,
         threading_type,
     );

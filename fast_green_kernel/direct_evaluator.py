@@ -70,24 +70,32 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
             f"sources must be a 2-dim array of shape (3, nsources), current shape: {sources.shape}."
         )
 
-    if charges.ndim != 1 or charges.shape[0] != sources.shape[1]:
+    if charges.shape[0] != sources.shape[1] or charges.ndim > 2:
         raise ValueError(
-            f"charges must be a 1-dim array of shape (nsources, ), current shape: {charges.shape}."
+            f"charges must be a 1- or 2-dim array of shape (nsources,..), current shape: {charges.shape}."
         )
 
     nsources = sources.shape[1]
     ntargets = targets.shape[1]
-
-    target = align_data(targets, dtype=dtype)
-    sources = align_data(sources, dtype=dtype)
-    charges = align_data(charges, dtype=dtype)
 
     if return_gradients:
         ncols = 4
     else:
         ncols = 1
 
-    result = np.empty((ntargets, ncols), dtype=dtype)
+    if charges.ndim == 1:
+        ncharge_vecs = 1
+        result = np.empty((ntargets, ncols), dtype=dtype)
+
+    else:
+        ncharge_vecs = charges.shape[1]
+        result = np.empty((ntargets, ncols, ncharge_vecs), dtype=dtype)
+
+    target = align_data(targets, dtype=dtype)
+    sources = align_data(sources, dtype=dtype)
+    charges = align_data(charges, dtype=dtype)
+
+
 
     if dtype == np.float32:
         lib.evaluate_laplace_kernel_f32(
@@ -97,6 +105,7 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
             as_float_ptr(result),
             as_usize(nsources),
             as_usize(ntargets),
+            as_usize(ncharge_vecs),
             return_gradients,
             parallel,
         )
@@ -108,11 +117,14 @@ def evaluate_laplace_kernel(targets, sources, charges, dtype=np.float64, paralle
             as_double_ptr(result),
             as_usize(nsources),
             as_usize(ntargets),
+            as_usize(ncharge_vecs),
             return_gradients,
             parallel,
         )
     else:
         raise NotImplementedError
+
+    
 
     return result
 
