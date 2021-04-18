@@ -115,7 +115,7 @@ def test_laplace_evaluate_values_and_deriv(dtype, rtol):
     expected = np.empty((nsources, ntargets, 4), dtype=dtype)
 
     for index, target in enumerate(targets.T):
-        diff = target.reshape(3, 1) - sources
+        diff = sources - target.reshape(3, 1)
         dist = np.linalg.norm(diff, axis=0)
         expected[:, index, 0] = 1.0 / ( 4 * np.pi * dist)
         expected[:, index, 1:] = diff.T / (4 * np.pi * dist.reshape(nsources, 1)**3)
@@ -142,7 +142,7 @@ def test_helmholtz_assemble(dtype, rtol):
     if dtype == np.complex128:
         real_type = np.float64
     elif dtype == np.complex64:
-        real_type = np.float64
+        real_type = np.float32
     else:
         raise ValueError(f"Unsupported type: {dtype}.")
 
@@ -161,8 +161,8 @@ def test_helmholtz_assemble(dtype, rtol):
 
     # A divide by zero error is expected to happen here.
     # So just ignore the warning.
-    old_param = np.geterr()["divide"]
-    np.seterr(divide="ignore")
+    old_params = np.geterr()
+    np.seterr(all="ignore")
 
     expected = np.empty((ntargets, nsources), dtype=dtype)
 
@@ -174,6 +174,6 @@ def test_helmholtz_assemble(dtype, rtol):
         expected[index, dist == 0] = 0
 
     # Reset the warnings
-    np.seterr(divide=old_param)
+    np.seterr(**old_params)
 
     np.testing.assert_allclose(actual, expected, rtol=rtol)

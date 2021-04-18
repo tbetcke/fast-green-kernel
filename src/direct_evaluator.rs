@@ -360,10 +360,6 @@ fn assemble_in_place_impl_helmholtz<T: RealType>(
                     wavenumber,
                     &EvalMode::Value,
                 );
-                println!("Real value: {}", tmp_real[[0, 1]]);
-                println!("Complex value: {}", tmp_imag[[0, 1]]);
-                panic!("Getting out...");
-                 
                 Zip::from(result_row.view_mut())
                     .and(tmp_real.index_axis(Axis(0), 0))
                     .and(tmp_imag.index_axis(Axis(0), 0))

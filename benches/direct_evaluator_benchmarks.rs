@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fast_green_kernel::direct_evaluator::*;
+use num::complex::Complex;
 use ndarray;
 use rand::Rng;
 
@@ -165,15 +166,69 @@ fn benchmark_laplace_evaluate_values_and_derivs_single_precision(c: &mut Criteri
     });
 }
 
+fn benchmark_helmholtz_assemble_single_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    type MyType = f32;
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut result = ndarray::Array2::<Complex<MyType>>::zeros((ntargets, nsources));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+
+    c.bench_function("helmholtz assemble single precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber)
+                .assemble_in_place(black_box(result.view_mut()), ThreadingType::Parallel);
+        })
+    });
+}
+
+fn benchmark_helmholtz_assemble_double_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    type MyType = f64;
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut result = ndarray::Array2::<Complex<MyType>>::zeros((ntargets, nsources));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+
+    c.bench_function("helmholtz assemble double precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber)
+                .assemble_in_place(black_box(result.view_mut()), ThreadingType::Parallel);
+        })
+    });
+}
+
+
+
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(30).measurement_time(std::time::Duration::from_secs(10));
+    config = Criterion::default().sample_size(10).measurement_time(std::time::Duration::from_secs(5));
     targets = benchmark_laplace_assemble_single_precision,
               benchmark_laplace_assemble_double_precision,
               benchmark_laplace_evalaute_values_single_precision,
               benchmark_laplace_evaluate_values_double_precision,
               benchmark_laplace_evaluate_values_and_derivs_single_precision,
               benchmark_laplace_evaluate_values_and_derivs_double_precision,
+              benchmark_helmholtz_assemble_single_precision,
+              benchmark_helmholtz_assemble_double_precision,
 }
 criterion_main!(benches);

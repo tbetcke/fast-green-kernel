@@ -105,7 +105,7 @@ pub fn laplace_kernel_impl_deriv<T: RealType>(
             Zip::from(deriv_row).and(source_row).and(values).for_each(
                 |deriv_value, &source_value, &value| {
                     *deriv_value =
-                        (m_4pi * value).powi(3) * (target_value - source_value) * m_inv_4pi;
+                        (m_4pi * value).powi(3) * (source_value - target_value) * m_inv_4pi;
                 },
             )
         });
@@ -172,7 +172,7 @@ pub fn helmholtz_kernel_impl_no_deriv<T: RealType>(
         .and(result_imag.index_axis_mut(Axis(0), 0))
         .for_each(|&dist_val, result_real_val, result_imag_val| {
             *result_real_val = exp_im * (wavenumber_real * dist_val).cos() * m_inv_4pi / dist_val;
-            *result_imag_val = exp_im * (wavenumber_imag * dist_val).sin() * m_inv_4pi / dist_val;
+            *result_imag_val = exp_im * (wavenumber_real * dist_val).sin() * m_inv_4pi / dist_val;
         });
 
     Zip::from(dist.view())
