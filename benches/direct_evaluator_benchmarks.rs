@@ -221,7 +221,7 @@ fn benchmark_helmholtz_assemble_double_precision(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(10).measurement_time(std::time::Duration::from_secs(5));
+    config = Criterion::default().sample_size(30).measurement_time(std::time::Duration::from_secs(10));
     targets = benchmark_laplace_assemble_single_precision,
               benchmark_laplace_assemble_double_precision,
               benchmark_laplace_evalaute_values_single_precision,
