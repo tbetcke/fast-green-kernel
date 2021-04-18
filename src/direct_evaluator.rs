@@ -126,20 +126,20 @@ pub trait RealDirectEvaluator: DirectEvaluatorAccessor {
     ) -> Array3<Self::FloatingPointType>;
 }
 
-// pub trait ComplexDirectEvaluator: DirectEvaluatorAccessor {
-//     /// Assemble the kernel matrix in-place
-//     fn assemble_in_place(
-//         &self,
-//         result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
-//         threading_type: ThreadingType,
-//     );
+pub trait ComplexDirectEvaluator: DirectEvaluatorAccessor {
+    /// Assemble the kernel matrix in-place
+    fn assemble_in_place(
+        &self,
+        result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
+        threading_type: ThreadingType,
+    );
 
-//     /// Assemble the kernel matrix and return it
-//     fn assemble(
-//         &self,
-//         threading_type: ThreadingType,
-//     ) -> Array2<num::complex::Complex<Self::FloatingPointType>>;
-// }
+    /// Assemble the kernel matrix and return it
+    fn assemble(
+        &self,
+        threading_type: ThreadingType,
+    ) -> Array2<num::complex::Complex<Self::FloatingPointType>>;
+}
 
 impl<P: ParticleContainerAccessor, R> DirectEvaluatorAccessor for DirectEvaluator<P, R> {
     type FloatingPointType = P::FloatingPointType;
@@ -242,43 +242,43 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
     }
 }
 
-// impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
-//     for DirectEvaluator<P, num::complex::Complex<P::FloatingPointType>>
-// {
-//     /// Assemble the kernel matrix in-place
-//     fn assemble_in_place(
-//         &self,
-//         result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
-//         threading_type: ThreadingType,
-//     ) {
-//         match self.kernel_type {
-//             KernelType::Helmholtz(wavenumber) => {
-//                 assemble_in_place_impl_helmholtz::<Self::FloatingPointType>(
-//                     self.sources(),
-//                     self.targets(),
-//                     result,
-//                     wavenumber,
-//                     threading_type,
-//                 )
-//             }
-//             _ => panic!("Kernel not implemented for this evaluator."),
-//         }
-//     }
+impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
+    for DirectEvaluator<P, num::complex::Complex<P::FloatingPointType>>
+{
+    /// Assemble the kernel matrix in-place
+    fn assemble_in_place(
+        &self,
+        result: ArrayViewMut2<num::complex::Complex<Self::FloatingPointType>>,
+        threading_type: ThreadingType,
+    ) {
+        match self.kernel_type {
+            KernelType::Helmholtz(wavenumber) => {
+                assemble_in_place_impl_helmholtz::<Self::FloatingPointType>(
+                    self.sources(),
+                    self.targets(),
+                    result,
+                    wavenumber,
+                    threading_type,
+                )
+            }
+            _ => panic!("Kernel not implemented for this evaluator."),
+        }
+    }
 
-//     /// Assemble the kernel matrix and return it
-//     fn assemble(
-//         &self,
-//         threading_type: ThreadingType,
-//     ) -> Array2<num::complex::Complex<Self::FloatingPointType>> {
-//         let mut result = Array2::<num::complex::Complex<Self::FloatingPointType>>::zeros((
-//             self.nsources(),
-//             self.ntargets(),
-//         ));
+    /// Assemble the kernel matrix and return it
+    fn assemble(
+        &self,
+        threading_type: ThreadingType,
+    ) -> Array2<num::complex::Complex<Self::FloatingPointType>> {
+        let mut result = Array2::<num::complex::Complex<Self::FloatingPointType>>::zeros((
+            self.nsources(),
+            self.ntargets(),
+        ));
 
-//         self.assemble_in_place(result.view_mut(), threading_type);
-//         result
-//     }
-// }
+        self.assemble_in_place(result.view_mut(), threading_type);
+        result
+    }
+}
 
 /// Implementation of assembler function for Laplace kernels.
 fn assemble_in_place_impl_laplace<T: RealType>(
@@ -312,38 +312,68 @@ fn assemble_in_place_impl_laplace<T: RealType>(
     }
 }
 
-// /// Implementation of assembler function for Helmholtz.
-// fn assemble_in_place_impl_helmholtz<T: RealType>(
-//     sources: ArrayView2<T>,
-//     targets: ArrayView2<T>,
-//     mut result: ArrayViewMut2<num::complex::Complex<T>>,
-//     wavenumber: num::complex::Complex<f64>,
-//     threading_type: ThreadingType,
-// ) {
-//     use crate::kernels::helmholtz_kernel;
-//     use ndarray::Zip;
+/// Implementation of assembler function for Helmholtz.
+fn assemble_in_place_impl_helmholtz<T: RealType>(
+    sources: ArrayView2<T>,
+    targets: ArrayView2<T>,
+    mut result: ArrayViewMut2<num::complex::Complex<T>>,
+    wavenumber: num::complex::Complex<f64>,
+    threading_type: ThreadingType,
+) {
+    use crate::kernels::helmholtz_kernel;
+    use ndarray::Zip;
 
-//     let nsources = sources.len_of(Axis(1));
+    let nsources = sources.len_of(Axis(1));
 
-//     match threading_type {
-//         ThreadingType::Parallel => Zip::from(targets.columns())
-//             .and(result.rows_mut())
-//             .par_for_each(|target, result_row| {
-//                 let tmp = result_row
-//                     .into_shape((1, nsources))
-//                     .expect("Cannot convert to 2-dimensional array.");
-//                 helmholtz_kernel(target, sources, tmp, wavenumber, &EvalMode::Value);
-//             }),
-//         ThreadingType::Serial => Zip::from(targets.columns())
-//             .and(result.rows_mut())
-//             .for_each(|target, result_row| {
-//                 let tmp = result_row
-//                     .into_shape((1, nsources))
-//                     .expect("Cannot conver to 2-dimensional array.");
-//                 helmholtz_kernel(target, sources, tmp, wavenumber, &EvalMode::Value);
-//             }),
-//     }
-// }
+    match threading_type {
+        ThreadingType::Parallel => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .par_for_each(|target, mut result_row| {
+                let mut tmp_real = Array2::<T>::zeros((1, nsources));
+                let mut tmp_imag = Array2::<T>::zeros((1, nsources));
+                helmholtz_kernel(
+                    target,
+                    sources,
+                    tmp_real.view_mut(),
+                    tmp_imag.view_mut(),
+                    wavenumber,
+                    &EvalMode::Value,
+                );
+                Zip::from(result_row.view_mut())
+                    .and(tmp_real.index_axis(Axis(0), 0))
+                    .and(tmp_imag.index_axis(Axis(0), 0))
+                    .for_each(|result_elem, &tmp_real_elem, &tmp_imag_elem| {
+                        result_elem.re = tmp_real_elem;
+                        result_elem.im = tmp_imag_elem;
+                    });
+            }),
+        ThreadingType::Serial => Zip::from(targets.columns())
+            .and(result.rows_mut())
+            .for_each(|target, mut result_row| {
+                let mut tmp_real = Array2::<T>::zeros((1, nsources));
+                let mut tmp_imag = Array2::<T>::zeros((1, nsources));
+                helmholtz_kernel(
+                    target,
+                    sources,
+                    tmp_real.view_mut(),
+                    tmp_imag.view_mut(),
+                    wavenumber,
+                    &EvalMode::Value,
+                );
+                println!("Real value: {}", tmp_real[[0, 1]]);
+                println!("Complex value: {}", tmp_imag[[0, 1]]);
+                panic!("Getting out...");
+                 
+                Zip::from(result_row.view_mut())
+                    .and(tmp_real.index_axis(Axis(0), 0))
+                    .and(tmp_imag.index_axis(Axis(0), 0))
+                    .for_each(|result_elem, &tmp_real_elem, &tmp_imag_elem| {
+                        result_elem.re = tmp_real_elem;
+                        result_elem.im = tmp_imag_elem;
+                    });
+            }),
+    }
+}
 
 /// Implementation of assembler function for Laplace kernels.
 fn evaluate_in_place_impl_laplace<T: RealType>(
@@ -379,7 +409,9 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
                             .and(result_row)
                             .for_each(|tmp_row, result_elem| {
                                 Zip::from(tmp_row).and(charge_vec).for_each(
-                                    |tmp_elem, charge_elem| *result_elem += *tmp_elem * *charge_elem,
+                                    |tmp_elem, charge_elem| {
+                                        *result_elem += *tmp_elem * *charge_elem
+                                    },
                                 )
                             })
                     })
@@ -396,7 +428,9 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
                             .and(result_row)
                             .for_each(|tmp_row, result_elem| {
                                 Zip::from(tmp_row).and(charge_vec).for_each(
-                                    |tmp_elem, charge_elem| *result_elem += *tmp_elem * *charge_elem,
+                                    |tmp_elem, charge_elem| {
+                                        *result_elem += *tmp_elem * *charge_elem
+                                    },
                                 )
                             })
                     })

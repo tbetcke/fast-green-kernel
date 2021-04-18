@@ -13,14 +13,12 @@ pub fn laplace_kernel<T: RealType>(
     sources: ArrayView2<T>,
     result: ArrayViewMut2<T>,
     eval_mode: &EvalMode,
-){
-
+) {
     match eval_mode {
         EvalMode::Value => laplace_kernel_impl_no_deriv(target, sources, result),
-        EvalMode::ValueGrad => laplace_kernel_impl_deriv(target, sources, result)
+        EvalMode::ValueGrad => laplace_kernel_impl_deriv(target, sources, result),
     };
 }
-
 
 /// Implementation of the Laplace kernel without derivatives
 pub fn laplace_kernel_impl_no_deriv<T: RealType>(
@@ -47,14 +45,14 @@ pub fn laplace_kernel_impl_no_deriv<T: RealType>(
                 })
         });
 
-    result.index_axis_mut(Axis(0), 0).mapv_inplace(|item| m_inv_4pi / item.sqrt());
-    result.index_axis_mut(Axis(0), 0)
+    result
+        .index_axis_mut(Axis(0), 0)
+        .mapv_inplace(|item| m_inv_4pi / item.sqrt());
+    result
+        .index_axis_mut(Axis(0), 0)
         .iter_mut()
         .filter(|item| item.is_infinite())
         .for_each(|item| *item = zero);
-
-
-
 }
 
 /// Implementation of the Laplace kernel with derivatives
@@ -88,8 +86,11 @@ pub fn laplace_kernel_impl_deriv<T: RealType>(
 
     // Now compute the derivatives.
 
-    result.index_axis_mut(Axis(0), 0).mapv_inplace(|item| m_inv_4pi / item.sqrt());
-    result.index_axis_mut(Axis(0), 0)
+    result
+        .index_axis_mut(Axis(0), 0)
+        .mapv_inplace(|item| m_inv_4pi / item.sqrt());
+    result
+        .index_axis_mut(Axis(0), 0)
         .iter_mut()
         .filter(|item| item.is_infinite())
         .for_each(|item| *item = zero);
@@ -101,69 +102,148 @@ pub fn laplace_kernel_impl_deriv<T: RealType>(
         .and(target.view())
         .and(sources.rows())
         .for_each(|deriv_row, &target_value, source_row| {
-            Zip::from(deriv_row)
-            .and(source_row)
-            .and(values)
-            .for_each(|deriv_value, &source_value, &value| {
-                    *deriv_value = (m_4pi * value).powi(3) * (target_value - source_value) * m_inv_4pi;
-            })
-
+            Zip::from(deriv_row).and(source_row).and(values).for_each(
+                |deriv_value, &source_value, &value| {
+                    *deriv_value =
+                        (m_4pi * value).powi(3) * (target_value - source_value) * m_inv_4pi;
+                },
+            )
         });
-
-    
-
-
 }
 
 /// Implementation of the Helmholtz kernel
 pub fn helmholtz_kernel<T: RealType>(
     target: ArrayView1<T>,
     sources: ArrayView2<T>,
-    mut result: ArrayViewMut2<num::complex::Complex<T>>,
+    result_real: ArrayViewMut2<T>,
+    result_imag: ArrayViewMut2<T>,
     wavenumber: num::complex::Complex<f64>,
-    _eval_mode: &EvalMode,
+    eval_mode: &EvalMode,
+) {
+    match eval_mode {
+        EvalMode::Value => {
+            helmholtz_kernel_impl_no_deriv(target, sources, result_real, result_imag, wavenumber)
+        }
+        EvalMode::ValueGrad => {
+            helmholtz_kernel_impl_deriv(target, sources, result_real, result_imag, wavenumber)
+        }
+    };
+}
+
+pub fn helmholtz_kernel_impl_no_deriv<T: RealType>(
+    target: ArrayView1<T>,
+    sources: ArrayView2<T>,
+    mut result_real: ArrayViewMut2<T>,
+    mut result_imag: ArrayViewMut2<T>,
+    wavenumber: num::complex::Complex<f64>,
 ) {
     use ndarray::Zip;
 
-    let real_zero: T = num::traits::zero();
-    let complex_zero: num::complex::Complex<T> =
-        num::Complex::new(num::traits::zero(), num::traits::zero());
-    let mut diff = Array1::<T>::zeros(sources.len_of(Axis(1)));
+    let zero: T = num::traits::zero();
+
+
     let m_inv_4pi: T =
-        num::traits::cast::cast::<f64, T>(0.25).unwrap() * num::traits::FloatConst::FRAC_1_PI();
+        num::traits::cast::<f64, T>(0.25).unwrap() * num::traits::FloatConst::FRAC_1_PI();
 
-    let wavenumber = num::complex::Complex::new(
-        num::traits::cast::cast::<f64, T>(wavenumber.re).unwrap(),
-        num::traits::cast::cast::<f64, T>(wavenumber.im).unwrap(),
-    );
+    let wavenumber_real: T = num::traits::cast::<f64, T>(wavenumber.re).unwrap();
+    let wavenumber_imag: T = num::traits::cast::<f64, T>(wavenumber.im).unwrap();
 
-    let exp_factor: T = (-wavenumber.re).exp();
+    let mut dist = Array1::<T>::zeros(sources.len_of(Axis(1)));
+    let exp_im = (-wavenumber_imag).exp();
 
-    Zip::from(target.view())
+
+    result_real.fill(zero);
+    result_imag.fill(zero);
+
+    Zip::from(target)
         .and(sources.rows())
         .for_each(|&target_value, source_row| {
             Zip::from(source_row)
-                .and(diff.view_mut())
-                .for_each(|&source_value, diff_value| {
-                    *diff_value += (target_value - source_value) * (target_value - source_value)
+                .and(dist.view_mut())
+                .for_each(|&source_value, dist_ref| {
+                    *dist_ref += (source_value - target_value).powi(2)
                 })
         });
 
-    diff.mapv_inplace(|item| item.sqrt());
+    dist.mapv_inplace(|item| item.sqrt());
 
-    Zip::from(result.index_axis_mut(Axis(0), 0))
-        .and(diff.view())
-        .for_each(|result_value, diff_value| {
-            *result_value = num::Complex::new(
-                exp_factor * m_inv_4pi * (wavenumber.re * *diff_value).cos() / *diff_value,
-                exp_factor * m_inv_4pi * (wavenumber.re * *diff_value).sin() / *diff_value,
-            );
+    Zip::from(dist.view())
+        .and(result_real.index_axis_mut(Axis(0), 0))
+        .and(result_imag.index_axis_mut(Axis(0), 0))
+        .for_each(|&dist_val, result_real_val, result_imag_val| {
+            *result_real_val = exp_im * (wavenumber_real * dist_val).cos() * m_inv_4pi / dist_val;
+            *result_imag_val = exp_im * (wavenumber_imag * dist_val).sin() * m_inv_4pi / dist_val;
         });
-    Zip::from(result.index_axis_mut(Axis(0), 0))
-        .and(diff.view())
-        .for_each(|res_value, diff_value| {
-            if *diff_value == real_zero {
-                *res_value = complex_zero
+
+    Zip::from(dist.view())
+        .and(result_real.index_axis_mut(Axis(0), 0))
+        .and(result_imag.index_axis_mut(Axis(0), 0))
+        .for_each(|&dist_val, result_real_val, result_imag_val| {
+            if dist_val == zero {
+                *result_real_val = zero;
+                *result_imag_val = zero;
             }
         });
 }
+
+pub fn helmholtz_kernel_impl_deriv<T: RealType>(
+    target: ArrayView1<T>,
+    sources: ArrayView2<T>,
+    result_real: ArrayViewMut2<T>,
+    result_imaginary: ArrayViewMut2<T>,
+    wavenumber: num::complex::Complex<f64>,
+) {
+}
+
+// /// Implementation of the Helmholtz kernel
+// pub fn helmholtz_kernel<T: RealType>(
+//     target: ArrayView1<T>,
+//     sources: ArrayView2<T>,
+//     mut result: ArrayViewMut2<num::complex::Complex<T>>,
+//     wavenumber: num::complex::Complex<f64>,
+//     _eval_mode: &EvalMode,
+// ) {
+//     use ndarray::Zip;
+
+//     let real_zero: T = num::traits::zero();
+//     let complex_zero: num::complex::Complex<T> =
+//         num::Complex::new(num::traits::zero(), num::traits::zero());
+//     let mut diff = Array1::<T>::zeros(sources.len_of(Axis(1)));
+//     let m_inv_4pi: T =
+//         num::traits::cast::cast::<f64, T>(0.25).unwrap() * num::traits::FloatConst::FRAC_1_PI();
+
+//     let wavenumber = num::complex::Complex::new(
+//         num::traits::cast::cast::<f64, T>(wavenumber.re).unwrap(),
+//         num::traits::cast::cast::<f64, T>(wavenumber.im).unwrap(),
+//     );
+
+//     let exp_factor: T = (-wavenumber.re).exp();
+
+//     Zip::from(target.view())
+//         .and(sources.rows())
+//         .for_each(|&target_value, source_row| {
+//             Zip::from(source_row)
+//                 .and(diff.view_mut())
+//                 .for_each(|&source_value, diff_value| {
+//                     *diff_value += (target_value - source_value) * (target_value - source_value)
+//                 })
+//         });
+
+//     diff.mapv_inplace(|item| item.sqrt());
+
+//     Zip::from(result.index_axis_mut(Axis(0), 0))
+//         .and(diff.view())
+//         .for_each(|result_value, diff_value| {
+//             *result_value = num::Complex::new(
+//                 exp_factor * m_inv_4pi * (wavenumber.re * *diff_value).cos() / *diff_value,
+//                 exp_factor * m_inv_4pi * (wavenumber.re * *diff_value).sin() / *diff_value,
+//             );
+//         });
+//     Zip::from(result.index_axis_mut(Axis(0), 0))
+//         .and(diff.view())
+//         .for_each(|res_value, diff_value| {
+//             if *diff_value == real_zero {
+//                 *res_value = complex_zero
+//             }
+//         });
+// }

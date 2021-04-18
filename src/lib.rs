@@ -27,6 +27,7 @@ pub trait RealType:
     + std::marker::Sync
     + num::traits::Float
     + num::traits::FloatConst
+    + std::fmt::Display
 {
 }
 

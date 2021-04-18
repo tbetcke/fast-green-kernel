@@ -17,6 +17,13 @@ def as_usize(num):
     """Cast number to usize."""
     return ffi.cast("unsigned long", num)
 
+def as_double(num):
+    """Cast number to double."""
+    return ffi.cast("double", num)
+
+def as_float(num):
+    """Cast number to float."""
+    return ffi.cat("float", num)
 
 def align_data(arr, dtype=None):
     """Make sure that an array has the right properties."""
