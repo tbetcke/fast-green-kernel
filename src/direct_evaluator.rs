@@ -134,11 +134,28 @@ pub trait ComplexDirectEvaluator: DirectEvaluatorAccessor {
         threading_type: ThreadingType,
     );
 
+    /// Evaluate for a set of charges in-pace.
+    fn evaluate_in_place(
+        &self,
+        charges: ArrayView2<Complex<Self::FloatingPointType>>,
+        result: ArrayViewMut3<Complex<Self::FloatingPointType>>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    );
+
     /// Assemble the kernel matrix and return it
     fn assemble(
         &self,
         threading_type: ThreadingType,
     ) -> Array2<num::complex::Complex<Self::FloatingPointType>>;
+
+    /// Evaluate the kernel for a set of charges.
+    fn evaluate(
+        &self,
+        charges: ArrayView2<Complex<Self::FloatingPointType>>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) -> Array3<Complex<Self::FloatingPointType>>;
 }
 
 impl<P: ParticleContainerAccessor, R> DirectEvaluatorAccessor for DirectEvaluator<P, R> {
@@ -205,14 +222,17 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
         eval_mode: &EvalMode,
         threading_type: ThreadingType,
     ) {
-        evaluate_in_place_impl_laplace(
-            self.sources(),
-            self.targets(),
-            charges,
-            result,
-            eval_mode,
-            threading_type,
-        );
+        match self.kernel_type {
+            KernelType::Laplace => evaluate_in_place_impl_laplace(
+                self.sources(),
+                self.targets(),
+                charges,
+                result,
+                eval_mode,
+                threading_type,
+            ),
+            _ => panic!("Kernel not implemented for this evaluator."),
+        }
     }
     /// Evaluate the kernel for a set of charges.
     fn evaluate(
@@ -230,14 +250,7 @@ impl<P: ParticleContainerAccessor> RealDirectEvaluator
 
         let mut result =
             Array3::<Self::FloatingPointType>::zeros((ncharge_vecs, chunks, self.ntargets()));
-        evaluate_in_place_impl_laplace(
-            self.sources(),
-            self.targets(),
-            charges,
-            result.view_mut(),
-            eval_mode,
-            threading_type,
-        );
+        self.evaluate_in_place(charges, result.view_mut(), eval_mode, threading_type);
         result
     }
 }
@@ -265,6 +278,28 @@ impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
         }
     }
 
+    /// Evaluate for a set of charges in-pace.
+    fn evaluate_in_place(
+        &self,
+        charges: ArrayView2<Complex<Self::FloatingPointType>>,
+        result: ArrayViewMut3<Complex<Self::FloatingPointType>>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) {
+        match self.kernel_type {
+            KernelType::Helmholtz(wavenumber) => evaluate_in_place_impl_helmholtz(
+                self.sources(),
+                self.targets(),
+                charges,
+                result,
+                wavenumber,
+                eval_mode,
+                threading_type,
+            ),
+            _ => panic!("Kernel not implemented for this evaluator."),
+        }
+    }
+
     /// Assemble the kernel matrix and return it
     fn assemble(
         &self,
@@ -276,6 +311,29 @@ impl<P: ParticleContainerAccessor> ComplexDirectEvaluator
         ));
 
         self.assemble_in_place(result.view_mut(), threading_type);
+        result
+    }
+
+    /// Evaluate the kernel for a set of charges.
+    fn evaluate(
+        &self,
+        charges: ArrayView2<Complex<Self::FloatingPointType>>,
+        eval_mode: &EvalMode,
+        threading_type: ThreadingType,
+    ) -> Array3<Complex<Self::FloatingPointType>> {
+        let chunks = match eval_mode {
+            EvalMode::Value => 1,
+            EvalMode::ValueGrad => 4,
+        };
+
+        let ncharge_vecs = charges.len_of(Axis(1));
+
+        let mut result = Array3::<Complex<Self::FloatingPointType>>::zeros((
+            ncharge_vecs,
+            chunks,
+            self.ntargets(),
+        ));
+        self.evaluate_in_place(charges, result.view_mut(), eval_mode, threading_type);
         result
     }
 }
@@ -371,7 +429,7 @@ fn assemble_in_place_impl_helmholtz<T: RealType>(
     }
 }
 
-/// Implementation of assembler function for Laplace kernels.
+/// Implementation of the evaluator function for Laplace kernels.
 fn evaluate_in_place_impl_laplace<T: RealType>(
     sources: ArrayView2<T>,
     targets: ArrayView2<T>,
@@ -428,6 +486,114 @@ fn evaluate_in_place_impl_laplace<T: RealType>(
                                         *result_elem += *tmp_elem * *charge_elem
                                     },
                                 )
+                            })
+                    })
+            }),
+    }
+}
+
+/// Implementation of the evaluator function for Laplace kernels.
+fn evaluate_in_place_impl_helmholtz<T: RealType>(
+    sources: ArrayView2<T>,
+    targets: ArrayView2<T>,
+    charges: ArrayView2<Complex<T>>,
+    mut result: ArrayViewMut3<Complex<T>>,
+    wavenumber: Complex<f64>,
+    eval_mode: &EvalMode,
+    threading_type: ThreadingType,
+) {
+    use crate::kernels::helmholtz_kernel;
+    use ndarray::Zip;
+
+    let nsources = sources.len_of(Axis(1));
+
+    let chunks = match eval_mode {
+        EvalMode::Value => 1,
+        EvalMode::ValueGrad => 4,
+    };
+
+    let charges_real = charges.map(|item| item.re);
+    let charges_imag = charges.map(|item| item.im);
+
+    result.fill(num::traits::zero());
+
+    match threading_type {
+        ThreadingType::Parallel => Zip::from(targets.columns())
+            .and(result.axis_iter_mut(Axis(1)))
+            .par_for_each(|target, mut result_block| {
+                let mut tmp_real = Array2::<T>::zeros((chunks, nsources));
+                let mut tmp_imag = Array2::<T>::zeros((chunks, nsources));
+                helmholtz_kernel(
+                    target,
+                    sources,
+                    tmp_real.view_mut(),
+                    tmp_imag.view_mut(),
+                    wavenumber,
+                    eval_mode,
+                );
+                Zip::from(charges_real.rows())
+                    .and(charges_imag.rows())
+                    .and(result_block.rows_mut())
+                    .for_each(|charge_vec_real, charge_vec_imag, result_row| {
+                        Zip::from(tmp_real.rows())
+                            .and(tmp_imag.rows())
+                            .and(result_row)
+                            .for_each(|tmp_real_row, tmp_imag_row, result_elem| {
+                                Zip::from(tmp_real_row)
+                                    .and(tmp_imag_row)
+                                    .and(charge_vec_real)
+                                    .and(charge_vec_imag)
+                                    .for_each(
+                                        |tmp_elem_real,
+                                         tmp_elem_imag,
+                                         charge_elem_real,
+                                         charge_elem_imag| {
+                                            result_elem.re += *tmp_elem_real * *charge_elem_imag
+                                                + *tmp_elem_imag * *charge_elem_real;
+                                            result_elem.im += *tmp_elem_real * *charge_elem_real
+                                                - *tmp_elem_imag * *charge_elem_imag;
+                                        },
+                                    )
+                            })
+                    })
+            }),
+
+        ThreadingType::Serial => Zip::from(targets.columns())
+            .and(result.axis_iter_mut(Axis(1)))
+            .for_each(|target, mut result_block| {
+                let mut tmp_real = Array2::<T>::zeros((chunks, nsources));
+                let mut tmp_imag = Array2::<T>::zeros((chunks, nsources));
+                helmholtz_kernel(
+                    target,
+                    sources,
+                    tmp_real.view_mut(),
+                    tmp_imag.view_mut(),
+                    wavenumber,
+                    eval_mode,
+                );
+                Zip::from(charges_real.rows())
+                    .and(charges_imag.rows())
+                    .and(result_block.rows_mut())
+                    .for_each(|charge_vec_real, charge_vec_imag, result_row| {
+                        Zip::from(tmp_real.rows())
+                            .and(tmp_imag.rows())
+                            .and(result_row)
+                            .for_each(|tmp_real_row, tmp_imag_row, result_elem| {
+                                Zip::from(tmp_real_row)
+                                    .and(tmp_imag_row)
+                                    .and(charge_vec_real)
+                                    .and(charge_vec_imag)
+                                    .for_each(
+                                        |tmp_elem_real,
+                                         tmp_elem_imag,
+                                         charge_elem_real,
+                                         charge_elem_imag| {
+                                            result_elem.re += *tmp_elem_real * *charge_elem_imag
+                                                + *tmp_elem_imag * *charge_elem_real;
+                                            result_elem.im += *tmp_elem_real * *charge_elem_real
+                                                - *tmp_elem_imag * *charge_elem_imag;
+                                        },
+                                    )
                             })
                     })
             }),

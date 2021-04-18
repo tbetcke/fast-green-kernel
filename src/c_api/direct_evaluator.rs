@@ -156,8 +156,12 @@ pub extern "C" fn assemble_helmholtz_kernel_f64(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let result =
-        unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr as *mut Complex<f64>) };
+    let result = unsafe {
+        ndarray::ArrayViewMut2::from_shape_ptr(
+            (ntargets, nsources),
+            result_ptr as *mut Complex<f64>,
+        )
+    };
     let wavenumber = Complex::<f64>::new(wavenumber_real, wavenumber_imag);
 
     let threading_type = match parallel {
@@ -184,8 +188,12 @@ pub extern "C" fn assemble_helmholtz_kernel_f32(
 
     let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
     let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
-    let result =
-        unsafe { ndarray::ArrayViewMut2::from_shape_ptr((ntargets, nsources), result_ptr as *mut Complex<f32>) };
+    let result = unsafe {
+        ndarray::ArrayViewMut2::from_shape_ptr(
+            (ntargets, nsources),
+            result_ptr as *mut Complex<f32>,
+        )
+    };
     let wavenumber = Complex::<f64>::new(wavenumber_real, wavenumber_imag);
 
     let threading_type = match parallel {
@@ -195,4 +203,116 @@ pub extern "C" fn assemble_helmholtz_kernel_f32(
 
     make_helmholtz_evaluator(sources, targets, wavenumber)
         .assemble_in_place(result, threading_type);
+}
+
+#[no_mangle]
+pub extern "C" fn evaluate_helmholtz_kernel_f64(
+    target_ptr: *const f64,
+    source_ptr: *const f64,
+    charge_ptr: *const f64,
+    result_ptr: *mut f64,
+    wavenumber_real: f64,
+    wavenumber_imag: f64,
+    nsources: usize,
+    ntargets: usize,
+    ncharge_vecs: usize,
+    return_gradients: bool,
+    parallel: bool,
+) {
+    use crate::direct_evaluator::*;
+    use crate::kernels::EvalMode;
+
+    let eval_mode = match return_gradients {
+        true => EvalMode::ValueGrad,
+        false => EvalMode::Value,
+    };
+
+    let threading_type = match parallel {
+        true => ThreadingType::Parallel,
+        false => ThreadingType::Serial,
+    };
+
+    let ncols: usize = match eval_mode {
+        EvalMode::Value => 1,
+        EvalMode::ValueGrad => 4,
+    };
+    let wavenumber = Complex::<f64>::new(wavenumber_real, wavenumber_imag);
+
+    let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
+    let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
+    let charges = unsafe {
+        ndarray::ArrayView2::from_shape_ptr(
+            (ncharge_vecs, nsources),
+            charge_ptr as *mut Complex<f64>,
+        )
+    };
+    let result = unsafe {
+        ndarray::ArrayViewMut3::from_shape_ptr(
+            (ncharge_vecs, ntargets, ncols),
+            result_ptr as *mut Complex<f64>,
+        )
+    };
+
+    make_helmholtz_evaluator(sources, targets, wavenumber).evaluate_in_place(
+        charges,
+        result,
+        &eval_mode,
+        threading_type,
+    );
+}
+
+#[no_mangle]
+pub extern "C" fn evaluate_helmholtz_kernel_f32(
+    target_ptr: *const f32,
+    source_ptr: *const f32,
+    charge_ptr: *const f32,
+    result_ptr: *mut f32,
+    wavenumber_real: f64,
+    wavenumber_imag: f64,
+    nsources: usize,
+    ntargets: usize,
+    ncharge_vecs: usize,
+    return_gradients: bool,
+    parallel: bool,
+) {
+    use crate::direct_evaluator::*;
+    use crate::kernels::EvalMode;
+
+    let eval_mode = match return_gradients {
+        true => EvalMode::ValueGrad,
+        false => EvalMode::Value,
+    };
+
+    let threading_type = match parallel {
+        true => ThreadingType::Parallel,
+        false => ThreadingType::Serial,
+    };
+
+    let ncols: usize = match eval_mode {
+        EvalMode::Value => 1,
+        EvalMode::ValueGrad => 4,
+    };
+    let wavenumber = Complex::<f64>::new(wavenumber_real, wavenumber_imag);
+
+    let targets = unsafe { ndarray::ArrayView2::from_shape_ptr((3, ntargets), target_ptr) };
+    let sources = unsafe { ndarray::ArrayView2::from_shape_ptr((3, nsources), source_ptr) };
+    let charges = unsafe {
+        ndarray::ArrayView2::from_shape_ptr(
+            (ncharge_vecs, nsources),
+            charge_ptr as *mut Complex<f32>,
+        )
+    };
+    let result = unsafe {
+        ndarray::ArrayViewMut3::from_shape_ptr(
+            (ncharge_vecs, ntargets, ncols),
+            result_ptr as *mut Complex<f32>,
+        )
+    };
+
+    make_helmholtz_evaluator(sources, targets, wavenumber).evaluate_in_place(
+        charges,
+        result,
+        &eval_mode,
+        threading_type,
+    );
 }
