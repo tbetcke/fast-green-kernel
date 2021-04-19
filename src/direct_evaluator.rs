@@ -548,10 +548,10 @@ fn evaluate_in_place_impl_helmholtz<T: RealType>(
                                          tmp_elem_imag,
                                          charge_elem_real,
                                          charge_elem_imag| {
-                                            result_elem.re += *tmp_elem_real * *charge_elem_imag
-                                                + *tmp_elem_imag * *charge_elem_real;
-                                            result_elem.im += *tmp_elem_real * *charge_elem_real
+                                            result_elem.re += *tmp_elem_real * *charge_elem_real
                                                 - *tmp_elem_imag * *charge_elem_imag;
+                                            result_elem.im += *tmp_elem_real * *charge_elem_imag
+                                                + *tmp_elem_imag * *charge_elem_real;
                                         },
                                     )
                             })
@@ -588,10 +588,10 @@ fn evaluate_in_place_impl_helmholtz<T: RealType>(
                                          tmp_elem_imag,
                                          charge_elem_real,
                                          charge_elem_imag| {
-                                            result_elem.re += *tmp_elem_real * *charge_elem_imag
-                                                + *tmp_elem_imag * *charge_elem_real;
-                                            result_elem.im += *tmp_elem_real * *charge_elem_real
+                                            result_elem.re += *tmp_elem_real * *charge_elem_real
                                                 - *tmp_elem_imag * *charge_elem_imag;
+                                            result_elem.im += *tmp_elem_real * *charge_elem_imag
+                                                + *tmp_elem_imag * *charge_elem_real;
                                         },
                                     )
                             })

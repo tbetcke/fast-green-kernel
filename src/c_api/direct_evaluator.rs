@@ -246,6 +246,7 @@ pub extern "C" fn evaluate_helmholtz_kernel_f64(
             charge_ptr as *mut Complex<f64>,
         )
     };
+
     let result = unsafe {
         ndarray::ArrayViewMut3::from_shape_ptr(
             (ncharge_vecs, ntargets, ncols),
