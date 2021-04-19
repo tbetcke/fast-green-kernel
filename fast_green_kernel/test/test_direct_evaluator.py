@@ -207,9 +207,8 @@ def test_helmholtz_evaluate_only_values(dtype, rtol):
     targets = 1.5 + rng.random((3, ntargets), dtype=real_type)
     sources = rng.random((3, nsources), dtype=real_type)
     sources[:, 0] = targets[:, 0]  # Test what happens if source = target
-    #charges = rng.random((ncharge_vecs, nsources), dtype=real_type) + 1j * rng.random((ncharge_vecs, nsources), dtype=real_type)
-    charges = np.zeros((ncharge_vecs, nsources), dtype=dtype)
-    charges[1, 0] = 1
+    charges = rng.random((ncharge_vecs, nsources), dtype=real_type) + 1j * rng.random((ncharge_vecs, nsources), dtype=real_type)
+
     actual = evaluate_helmholtz_kernel(targets, sources, charges, wavenumber, dtype=dtype, parallel=False)
 
     # Calculate expected result
