@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use fast_green_kernel::direct_evaluator::*;
-use num::complex::Complex;
 use ndarray;
+use num::complex::Complex;
 use rand::Rng;
 
 fn benchmark_laplace_assemble_double_precision(c: &mut Criterion) {
@@ -216,7 +216,146 @@ fn benchmark_helmholtz_assemble_double_precision(c: &mut Criterion) {
     });
 }
 
+fn benchmark_helmholtz_evaluate_values_double_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+    let ncharge_vecs = 2;
 
+    type MyType = f64;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut charges = ndarray::Array2::<Complex<MyType>>::zeros((ncharge_vecs, nsources));
+    let mut result = ndarray::Array3::<Complex<MyType>>::zeros((ncharge_vecs, ntargets, 1));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+    charges.map_inplace(|item| {
+        item.re = rng.gen::<MyType>();
+        item.im = rng.gen::<MyType>();
+    });
+
+    c.bench_function("helmholtz evaluate values double precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber).evaluate_in_place(
+                charges.view(),
+                black_box(result.view_mut()),
+                &fast_green_kernel::kernels::EvalMode::Value,
+                ThreadingType::Parallel,
+            );
+        })
+    });
+}
+
+fn benchmark_helmholtz_evaluate_values_single_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+    let ncharge_vecs = 2;
+
+    type MyType = f32;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut charges = ndarray::Array2::<Complex<MyType>>::zeros((ncharge_vecs, nsources));
+    let mut result = ndarray::Array3::<Complex<MyType>>::zeros((ncharge_vecs, ntargets, 1));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+    charges.map_inplace(|item| {
+        item.re = rng.gen::<MyType>();
+        item.im = rng.gen::<MyType>();
+    });
+
+    c.bench_function("helmholtz evaluate values single precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber).evaluate_in_place(
+                charges.view(),
+                black_box(result.view_mut()),
+                &fast_green_kernel::kernels::EvalMode::Value,
+                ThreadingType::Parallel,
+            );
+        })
+    });
+}
+
+fn benchmark_helmholtz_evaluate_values_and_derivs_double_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+    let ncharge_vecs = 2;
+
+    type MyType = f64;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut charges = ndarray::Array2::<Complex<MyType>>::zeros((ncharge_vecs, nsources));
+    let mut result = ndarray::Array3::<Complex<MyType>>::zeros((ncharge_vecs, ntargets, 4));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+    charges.map_inplace(|item| {
+        item.re = rng.gen::<MyType>();
+        item.im = rng.gen::<MyType>();
+    });
+
+    c.bench_function("helmholtz evaluate values and derivs double precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber).evaluate_in_place(
+                charges.view(),
+                black_box(result.view_mut()),
+                &fast_green_kernel::kernels::EvalMode::ValueGrad,
+                ThreadingType::Parallel,
+            );
+        })
+    });
+}
+
+
+fn benchmark_helmholtz_evaluate_values_and_derivs_single_precision(c: &mut Criterion) {
+    let nsources = 20000;
+    let ntargets = 20000;
+    let ncharge_vecs = 2;
+
+    type MyType = f32;
+
+    let wavenumber = Complex::new(2.5, 0.0);
+
+    let mut rng = rand::thread_rng();
+
+    let mut sources = ndarray::Array2::<MyType>::zeros((3, nsources));
+    let mut targets = ndarray::Array2::<MyType>::zeros((3, ntargets));
+    let mut charges = ndarray::Array2::<Complex<MyType>>::zeros((ncharge_vecs, nsources));
+    let mut result = ndarray::Array3::<Complex<MyType>>::zeros((ncharge_vecs, ntargets, 4));
+
+    sources.map_inplace(|item| *item = rng.gen::<MyType>());
+    targets.map_inplace(|item| *item = rng.gen::<MyType>());
+    charges.map_inplace(|item| {
+        item.re = rng.gen::<MyType>();
+        item.im = rng.gen::<MyType>();
+    });
+
+    c.bench_function("helmholtz evaluate values and derivs single precision", |b| {
+        b.iter(|| {
+            make_helmholtz_evaluator(sources.view(), targets.view(), wavenumber).evaluate_in_place(
+                charges.view(),
+                black_box(result.view_mut()),
+                &fast_green_kernel::kernels::EvalMode::ValueGrad,
+                ThreadingType::Parallel,
+            );
+        })
+    });
+}
 
 
 criterion_group! {
@@ -230,5 +369,9 @@ criterion_group! {
               benchmark_laplace_evaluate_values_and_derivs_double_precision,
               benchmark_helmholtz_assemble_single_precision,
               benchmark_helmholtz_assemble_double_precision,
-}
+              benchmark_helmholtz_evaluate_values_double_precision,
+              benchmark_helmholtz_evaluate_values_single_precision,
+              benchmark_helmholtz_evaluate_values_and_derivs_double_precision,
+              benchmark_helmholtz_evaluate_values_and_derivs_single_precision,
+            }
 criterion_main!(benches);

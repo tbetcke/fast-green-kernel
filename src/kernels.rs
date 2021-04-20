@@ -228,20 +228,10 @@ pub fn helmholtz_kernel_impl_deriv<T: RealType>(
             *result_imag_val = exp_im * (wavenumber_real * dist_val).sin() * m_inv_4pi / dist_val;
         });
 
-    Zip::from(dist.view())
-        .and(result_real.index_axis_mut(Axis(0), 0))
-        .and(result_imag.index_axis_mut(Axis(0), 0))
-        .for_each(|&dist_val, result_real_val, result_imag_val| {
-            if dist_val == zero {
-                *result_real_val = zero;
-                *result_imag_val = zero;
-            }
-        });
-
     // Now do the derivative term
 
-    let (values_real, mut derivs_real) = result_real.split_at(Axis(0), 1);
-    let (values_imag, mut derivs_imag) = result_imag.split_at(Axis(0), 1);
+    let (values_real, mut derivs_real) = result_real.view_mut().split_at(Axis(0), 1);
+    let (values_imag, mut derivs_imag) = result_imag.view_mut().split_at(Axis(0), 1);
 
     let values_real = values_real.index_axis(Axis(0), 0);
     let values_imag = values_imag.index_axis(Axis(0), 0);
@@ -265,14 +255,28 @@ pub fn helmholtz_kernel_impl_deriv<T: RealType>(
                          &value_real,
                          &value_imag,
                          &dist_value| {
-                            *deriv_real_value = (target_value - source_value)
+                            *deriv_real_value = (target_value - source_value) / dist_value.powi(2)
                                 * ((-one - wavenumber_imag * dist_value) * value_real
                                     - wavenumber_real * dist_value * value_imag);
-                            *deriv_imag_value = (target_value - source_value)
+                            *deriv_imag_value = (target_value - source_value) / dist_value.powi(2)
                                 * (value_real * wavenumber_real * dist_value
                                     + (-one - wavenumber_imag * dist_value) * value_imag);
                         },
                     )
             },
         );
+
+    Zip::from(result_real.rows_mut())
+        .and(result_imag.rows_mut())
+        .for_each(|real_row, imag_row| {
+            Zip::from(dist.view()).and(real_row).and(imag_row).for_each(
+                |dist_elem, real_elem, imag_elem| {
+                    if *dist_elem == zero {
+                        *real_elem = zero;
+                        *imag_elem = zero;
+                    }
+                },
+            )
+        });
+
 }
